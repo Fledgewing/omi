@@ -256,7 +256,7 @@ class SchemaBasedSttProvider implements ISttProvider {
     );
   }
 
-  Future<String?> _uploadAudio(Uint8List audioBytes) async {
+  Future<String?> _uploadAudio(Uint8List audioBytes, {DateTime? timestamp}) async {
     if (fileUploadConfig == null) return null;
 
     try {
@@ -283,11 +283,14 @@ class SchemaBasedSttProvider implements ISttProvider {
         return null;
       }
 
+      final uploadHeaders = {'Content-Type': fileUploadConfig!.uploadContentType};
+      if (timestamp != null) {
+        uploadHeaders['X-Original-Timestamp'] = timestamp.toUtc().toIso8601String();
+      }
+
       final uploadRequest = fileUploadConfig!.uploadMethod.toUpperCase() == 'PUT'
-          ? _client.put(Uri.parse(uploadUrl),
-              headers: {'Content-Type': fileUploadConfig!.uploadContentType}, body: audioBytes)
-          : _client.post(Uri.parse(uploadUrl),
-              headers: {'Content-Type': fileUploadConfig!.uploadContentType}, body: audioBytes);
+          ? _client.put(Uri.parse(uploadUrl), headers: uploadHeaders, body: audioBytes)
+          : _client.post(Uri.parse(uploadUrl), headers: uploadHeaders, body: audioBytes);
 
       final uploadResponse = await uploadRequest.timeout(const Duration(seconds: 60));
 
@@ -307,6 +310,7 @@ class SchemaBasedSttProvider implements ISttProvider {
   Future<SttTranscriptionResult?> transcribe(
     dynamic audioData, {
     double audioOffsetSeconds = 0,
+    DateTime? timestamp,
   }) async {
     final Uint8List audioBytes = audioData is Uint8List ? audioData : Uint8List.fromList(audioData);
     try {
@@ -315,23 +319,30 @@ class SchemaBasedSttProvider implements ISttProvider {
 
       String? audioUrlFromUpload;
       if (fileUploadConfig != null) {
-        audioUrlFromUpload = await _uploadAudio(audioBytes);
+        audioUrlFromUpload = await _uploadAudio(audioBytes, timestamp: timestamp);
         if (audioUrlFromUpload == null) return null;
       }
 
       switch (requestBodyType) {
         case SttRequestBodyType.rawBinary:
-          response =
-              await _client.post(uri, headers: defaultHeaders, body: audioBytes).timeout(const Duration(seconds: 60));
+          final headers = Map<String, String>.from(defaultHeaders);
+          if (timestamp != null) {
+            headers['X-Original-Timestamp'] = timestamp.toUtc().toIso8601String();
+          }
+          response = await _client.post(uri, headers: headers, body: audioBytes).timeout(const Duration(seconds: 60));
           break;
 
         case SttRequestBodyType.jsonBase64:
           if (jsonBodyBuilder == null) {
             throw Exception('jsonBodyBuilder required for jsonBase64 request type');
           }
+          final headers = Map<String, String>.from(defaultHeaders);
+          if (timestamp != null) {
+            headers['X-Original-Timestamp'] = timestamp.toUtc().toIso8601String();
+          }
           final audioInput = audioUrlFromUpload ?? base64Encode(audioBytes);
           response = await _client
-              .post(uri, headers: defaultHeaders, body: jsonEncode(jsonBodyBuilder!(audioInput)))
+              .post(uri, headers: headers, body: jsonEncode(jsonBodyBuilder!(audioInput)))
               .timeout(const Duration(seconds: 60));
           break;
 
@@ -340,6 +351,9 @@ class SchemaBasedSttProvider implements ISttProvider {
             ..headers.addAll(defaultHeaders)
             ..fields.addAll(defaultFields)
             ..files.add(http.MultipartFile.fromBytes(audioFieldName, audioBytes, filename: 'audio.wav'));
+          if (timestamp != null) {
+            request.headers['X-Original-Timestamp'] = timestamp.toUtc().toIso8601String();
+          }
 
           final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
           response = await http.Response.fromStream(streamedResponse);

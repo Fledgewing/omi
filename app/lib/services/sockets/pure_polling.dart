@@ -29,6 +29,7 @@ abstract class ISttProvider {
   Future<SttTranscriptionResult?> transcribe(
     Uint8List audioData, {
     double audioOffsetSeconds = 0,
+    DateTime? timestamp,
   });
 
   void dispose();
@@ -67,6 +68,7 @@ class PurePollingSocket implements IPureSocket {
   final List<Uint8List> _audioFrames = [];
   bool _isProcessing = false;
   double _audioOffsetSeconds = 0;
+  DateTime? _recordingStartTime;
 
   PurePollingSocket({
     required this.config,
@@ -84,6 +86,7 @@ class PurePollingSocket implements IPureSocket {
     _status = PurePollingStatus.connecting;
 
     try {
+      _recordingStartTime = DateTime.now();
       _status = PurePollingStatus.connected;
       CustomSttLogService.instance.info(serviceId, 'Connected');
       DebugLogManager.logEvent('polling_socket_connected', {
@@ -158,9 +161,15 @@ class PurePollingSocket implements IPureSocket {
 
     final serviceId = config.serviceId ?? 'Polling';
     try {
+      // Calculate the timestamp for this specific chunk based on audio offset
+      final chunkTimestamp = _recordingStartTime?.add(
+        Duration(milliseconds: (_audioOffsetSeconds * 1000).round()),
+      );
+
       final result = await sttProvider.transcribe(
         audioData,
         audioOffsetSeconds: _audioOffsetSeconds,
+        timestamp: chunkTimestamp,
       );
       if (result != null && result.isNotEmpty) {
         if (result.segments.isNotEmpty) {
@@ -214,6 +223,7 @@ class PurePollingSocket implements IPureSocket {
     _bufferFlushTimer?.cancel();
     _audioFrames.clear();
     _audioOffsetSeconds = 0;
+    _recordingStartTime = null;
     sttProvider.dispose();
   }
 

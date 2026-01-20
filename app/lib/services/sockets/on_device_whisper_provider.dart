@@ -68,6 +68,7 @@ class OnDeviceWhisperProvider implements ISttProvider {
     Uint8List audioData, {
     double audioOffsetSeconds = 0,
     String? language,
+    DateTime? timestamp,
   }) async {
     try {
       final sw = Stopwatch()..start();
