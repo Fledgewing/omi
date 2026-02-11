@@ -1,0 +1,404 @@
+{
+  "name": "AudioWebhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audio-processing",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -720,
+        496
+      ],
+      "id": "3b391cdb-a21e-4813-a7a9-af49fb088b64",
+      "name": "Webhook",
+      "webhookId": "908d0c81-8636-45fc-81ee-9d577c4ffb39",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/files/audio/omi/{{ $binary.transcript.fileName }}",
+        "dataPropertyName": "transcript",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -416,
+        320
+      ],
+      "id": "764bbb33-a332-4c25-9ede-6c2e617e6e21",
+      "name": "Write Transcript",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/files/audio/omi/{{ $binary.audio.fileName }}",
+        "dataPropertyName": "audio",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -416,
+        496
+      ],
+      "id": "b9ecf1d4-8e9c-401b-891d-bd779ccf0a0c",
+      "name": "Write Audio",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/files/audio/omi/{{ $binary.metadata.fileName }}",
+        "dataPropertyName": "metadata",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -416,
+        688
+      ],
+      "id": "64f26633-7866-4eb2-90af-535f9df30e73",
+      "name": "Write Metadata",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -80,
+        512
+      ],
+      "id": "2607e99d-e490-4e18-ab9e-cc9da779bdaa",
+      "name": "Wait"
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -32,
+        768
+      ],
+      "id": "c2d94cfd-121f-43d3-92bb-eeb64e1c12dd",
+      "name": "Respond 500"
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        528,
+        544
+      ],
+      "id": "c5e1458d-9ac4-4708-8ef3-b0e3f2c9d0c2",
+      "name": "Respond 200"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Wasn't able to process this input"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        240,
+        768
+      ],
+      "id": "c453cbce-48a4-4b04-a5d8-44008902c610",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "rawAudio",
+          "mode": "list",
+          "cachedResultName": "rawAudio"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "RawAudioFileName": "=/files/audio/omi/{{ $binary.audio.fileName }}",
+            "BasicTranscriptFileName": "=/files/audio/omi/{{ $binary.transcript.fileName }}",
+            "RawMetadataFileName": "=/files/audio/omi/{{ $binary.metadata.fileName }}",
+            "User": "kurtis",
+            "taskChecked": false
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "RawAudioFileName",
+              "displayName": "RawAudioFileName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "BasicTranscriptFileName",
+              "displayName": "BasicTranscriptFileName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "RawMetadataFileName",
+              "displayName": "RawMetadataFileName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "User",
+              "displayName": "User",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "taskChecked",
+              "displayName": "taskChecked",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "basicResearch",
+              "displayName": "basicResearch",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "commandsParsed",
+              "displayName": "commandsParsed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        176,
+        544
+      ],
+      "id": "0ae37a33-da9f-42a1-a487-7321a73b2695",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "cGVmilyTz0Du4SIz",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Write Transcript",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write Audio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audio": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Respond 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Transcript": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Metadata": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 2
+          }
+        ],
+        [
+          {
+            "node": "Respond 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        []
+      ]
+    },
+    "Respond 500": {
+      "main": [
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ccc78eea-e8fb-4b63-9cbe-ccd5f5d0f3e8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ff2b6ca207fc0d56d3e1ee9b132845979aba5b7ffb7b351abc8cc222d6f95bc3"
+  },
+  "id": "DQw2FYODTMzOMBSi8pSm8",
+  "tags": []
+}
