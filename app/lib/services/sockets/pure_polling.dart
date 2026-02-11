@@ -16,13 +16,22 @@ class AudioPollingConfig {
   final int minBufferSizeBytes;
   final String? serviceId;
   final IAudioTranscoder? transcoder;
+  final int sampleRate;
+  final int bitsPerSample;
+  final int channels;
 
   const AudioPollingConfig({
     this.bufferDuration = const Duration(seconds: 3),
     this.minBufferSizeBytes = 8000,
     this.serviceId,
     this.transcoder,
+    this.sampleRate = 16000,
+    this.bitsPerSample = 16,
+    this.channels = 1,
   });
+
+  /// Bytes per second based on audio format
+  int get bytesPerSecond => sampleRate * (bitsPerSample ~/ 8) * channels;
 }
 
 abstract class ISttProvider {
@@ -161,20 +170,31 @@ class PurePollingSocket implements IPureSocket {
 
     final serviceId = config.serviceId ?? 'Polling';
     try {
-      // Calculate the timestamp for this specific chunk based on audio offset
+      // Calculate the timestamp for this specific chunk
+      // Each chunk represents audio starting at _audioOffsetSeconds into the recording
       final chunkTimestamp = _recordingStartTime?.add(
         Duration(milliseconds: (_audioOffsetSeconds * 1000).round()),
       );
+
+      // Calculate the duration of this audio chunk
+      // Using actual audio format from config
+      final chunkDurationSeconds = audioData.lengthInBytes / config.bytesPerSecond;
 
       final result = await sttProvider.transcribe(
         audioData,
         audioOffsetSeconds: _audioOffsetSeconds,
         timestamp: chunkTimestamp,
       );
+
+      // Always increment offset by chunk duration, since time has passed
+      // If we get segments back with better timing info, use that instead
+      if (result != null && result.isNotEmpty && result.segments.isNotEmpty) {
+        _audioOffsetSeconds = result.segments.last.end;
+      } else {
+        _audioOffsetSeconds += chunkDurationSeconds;
+      }
+
       if (result != null && result.isNotEmpty) {
-        if (result.segments.isNotEmpty) {
-          _audioOffsetSeconds = result.segments.last.end;
-        }
         final segmentsJson = result.segments
             .where((s) => s.text.trim().isNotEmpty)
             .map((s) => {
