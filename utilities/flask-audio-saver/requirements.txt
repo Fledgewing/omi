@@ -1,0 +1,10 @@
+Flask==3.0.3
+requests
+faster_whisper
+torch
+whisperx
+numpy
+pyannote.audio
+wave
+omegaconf
+pandas

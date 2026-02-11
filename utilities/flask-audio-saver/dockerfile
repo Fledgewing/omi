@@ -1,0 +1,36 @@
+# Use a lightweight Python base image (Debian slim)
+FROM python:3.9-slim
+
+# Install system dependencies for WhisperX/pyannote.audio (OpenMP, audio libs)
+# libgomp1: Fixes "libgomp.so.1" error for CPU diarization
+# ffmpeg: Audio processing
+# libsndfile1: Audio file handling (pyannote/WhisperX)
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code (rename enhanced_whisper_server.py → app.py)
+COPY app.py .
+
+# Create the save directory (mounted as volume)
+RUN mkdir -p /exports /exports/final /exports/whisper-models
+
+# Expose the port
+EXPOSE 5000
+
+# Healthcheck (optional: checks if Flask responds)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=12 \
+  CMD curl -f http://localhost:5000/ || exit 1
+
+# Run the application
+CMD ["python", "app.py"]

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  audio-saver:
+    image: temporalise/flask-audio-saver
+    container_name: audio-saver
+    ports:
+      - "6000:5000"
+    volumes:
+      - ./exports:/exports
+    environment:
+      - USE_LARGE_MODEL_FOR_FINAL=false
+    restart: unless-stopped
+
+  n8n-forwarder:
+    image: temporalise/n8n-forwarder
+    container_name: n8n-forwarder
+    volumes:
+      - ./exports:/exports
+    environment:
+      - WATCH_DIR=/exports/final
+      - N8N_WEBHOOK_URL=https://n8n.ava.awesomeland.net/webhook/audio-processing
+      - LOG_LEVEL=INFO
+      - STABILITY_DELAY=2
+      - MAX_FILE_SIZE=524288000
+    depends_on:
+      - audio-saver
+    restart: unless-stopped

@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    watchdog==4.0.0 \
+    requests==2.31.0
+
+# Copy the forwarder script
+COPY n8n-forwarder.py .
+
+# Create exports directory
+RUN mkdir -p /exports/final
+
+# Environment variables (can be overridden)
+ENV WATCH_DIR=/exports/final \
+    N8N_WEBHOOK_URL=https://n8n.ava.awesomeland.net/webhook/audio-processing \
+    LOG_LEVEL=INFO \
+    STABILITY_DELAY=2 \
+    MAX_FILE_SIZE=104857600
+
+# Run the forwarder
+CMD ["python", "-u", "n8n-forwarder.py"]
