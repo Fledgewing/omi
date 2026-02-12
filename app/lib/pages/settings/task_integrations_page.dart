@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:omi/widgets/shimmer_with_timeout.dart';
 
 import 'package:omi/gen/assets.gen.dart';
 import 'package:omi/pages/settings/asana_settings_page.dart';
@@ -235,21 +235,25 @@ class _TaskIntegrationsPageState extends State<TaskIntegrationsPage> with Widget
         if (granted) {
           // Update the provider's cached permission status with the granted result
           await provider.updateAppleRemindersPermission(granted: true);
+          // Save connected status to backend so auto-sync works
+          await provider.saveConnectionDetails(app.key, {'connected': true});
           await provider.setSelectedApp(app);
           Logger.debug('✓ Task integration enabled: ${app.displayName} (${app.key})');
         } else {
           if (mounted) {
             scaffoldMessenger.showSnackBar(
-              const SnackBar(
-                content: Text('Please enable Reminders access in Settings to use Apple Reminders'),
+              SnackBar(
+                content: Text(context.l10n.enableRemindersAccess),
                 backgroundColor: Colors.orange,
-                duration: Duration(seconds: 3),
+                duration: const Duration(seconds: 3),
               ),
             );
           }
         }
         return;
       }
+      // Permission already granted - ensure backend knows it's connected
+      await provider.saveConnectionDetails(app.key, {'connected': true});
       await provider.setSelectedApp(app);
       return;
     }
@@ -509,7 +513,7 @@ class _TaskIntegrationsPageState extends State<TaskIntegrationsPage> with Widget
   }
 
   Widget _buildShimmerButton() {
-    return Shimmer.fromColors(
+    return ShimmerWithTimeout(
       baseColor: Colors.grey.shade800,
       highlightColor: Colors.grey.shade600,
       child: Container(
@@ -622,9 +626,9 @@ class _TaskIntegrationsPageState extends State<TaskIntegrationsPage> with Widget
                   color: const Color(0xFF3C3C43),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Coming Soon',
-                  style: TextStyle(
+                child: Text(
+                  context.l10n.comingSoon,
+                  style: const TextStyle(
                     color: Color(0xFF8E8E93),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -639,9 +643,9 @@ class _TaskIntegrationsPageState extends State<TaskIntegrationsPage> with Widget
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Connect',
-                  style: TextStyle(
+                child: Text(
+                  context.l10n.connect,
+                  style: const TextStyle(
                     color: Colors.black,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,

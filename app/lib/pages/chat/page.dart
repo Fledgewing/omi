@@ -18,16 +18,22 @@ import 'package:omi/pages/apps/widgets/capability_apps_page.dart';
 import 'package:omi/pages/chat/widgets/ai_message.dart';
 import 'package:omi/pages/chat/widgets/user_message.dart';
 import 'package:omi/pages/chat/widgets/voice_recorder_widget.dart';
+import 'package:omi/pages/settings/integrations_page.dart';
+import 'package:omi/pages/settings/settings_drawer.dart';
 import 'package:omi/providers/app_provider.dart';
+import 'package:omi/providers/capture_provider.dart';
 import 'package:omi/providers/connectivity_provider.dart';
 import 'package:omi/providers/conversation_provider.dart';
 import 'package:omi/providers/home_provider.dart';
+import 'package:omi/providers/integration_provider.dart';
 import 'package:omi/providers/message_provider.dart';
 import 'package:omi/providers/voice_recorder_provider.dart';
+import 'package:omi/services/apple_health_service.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
 import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/other/temp.dart';
 import 'package:omi/widgets/dialog.dart';
+import 'package:omi/widgets/bottom_nav_bar.dart';
 
 class ChatPage extends StatefulWidget {
   final bool isPivotBottom;
@@ -73,6 +79,13 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
     textController.addListener(() {
       setState(() {});
     });
+    textFieldFocusNode.addListener(() {
+      setState(() {});
+      if (textFieldFocusNode.hasFocus) {
+        // Scroll to bottom when keyboard opens, with delay to allow keyboard animation
+        _ensureAtBottom(delayMs: 300);
+      }
+    });
 
     SchedulerBinding.instance.addPostFrameCallback((_) async {
       var provider = context.read<MessageProvider>();
@@ -81,6 +94,8 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
       }
       // Fetch enabled chat apps
       provider.fetchChatApps();
+      // Sync Apple Health data if connected (ensures fresh data for health queries)
+      _syncAppleHealthIfConnected();
       // Auto-focus the text field only on initial load, not on app switches
       if (_isInitialLoad) {
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -132,6 +147,32 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
     scrollController.dispose();
     textFieldFocusNode.dispose();
     super.dispose();
+  }
+
+  void _syncAppleHealthIfConnected() async {
+    final appleHealthService = AppleHealthService();
+    if (appleHealthService.isAvailable) {
+      final integrationProvider = context.read<IntegrationProvider>();
+      if (integrationProvider.isAppConnected(IntegrationApp.appleHealth)) {
+        debugPrint('🍎 [Apple Health] Starting auto-sync on chat open...');
+        final success = await appleHealthService.syncHealthDataToBackend(days: 7);
+        debugPrint('🍎 [Apple Health] Auto-sync ${success ? "completed" : "failed"}');
+      }
+    }
+  }
+
+  void _openSettingsDrawer() {
+    HapticFeedback.mediumImpact();
+    MixpanelManager().pageOpened('Settings');
+    final previousLanguage = SharedPreferencesUtil().userPrimaryLanguage;
+    final previousSpeech = SharedPreferencesUtil().hasSpeakerProfile;
+    final previousModel = SharedPreferencesUtil().transcriptionModel;
+    SettingsDrawer.show(context);
+    if (previousLanguage != SharedPreferencesUtil().userPrimaryLanguage ||
+        previousSpeech != SharedPreferencesUtil().hasSpeakerProfile ||
+        previousModel != SharedPreferencesUtil().transcriptionModel) {
+      context.read<CaptureProvider>().onRecordProfileSettingChanged();
+    }
   }
 
   @override
@@ -400,7 +441,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                       }),
                       // Send bar
                       SafeArea(
-                        bottom: !widget.isPivotBottom,
+                        bottom: false,
                         maintainBottomViewPadding: false,
                         child: Padding(
                           padding: EdgeInsets.only(
@@ -408,14 +449,14 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                             right: 8,
                             top: provider.selectedFiles.isNotEmpty ? 0 : 8,
                             bottom: widget.isPivotBottom
-                                ? 20
+                                ? 6
                                 : (textFieldFocusNode.hasFocus &&
                                         (textController.text.length > 40 || textController.text.contains('\n'))
                                     ? 0
-                                    : 10),
+                                    : 2),
                           ),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2A2A2F),
                               borderRadius: BorderRadius.circular(32),
@@ -620,6 +661,15 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                     ]);
                   }),
                 ),
+                SizedBox(height: textFieldFocusNode.hasFocus ? 12 : 0),
+                if (!textFieldFocusNode.hasFocus)
+                  BottomNavBar(
+                    showCenterButton: false,
+                    onTabTap: (index, isRepeat) {
+                      context.read<HomeProvider>().setIndex(index);
+                      Navigator.of(context).pop();
+                    },
+                  ),
               ],
             ),
           ),
@@ -783,7 +833,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
             context.read<MessageProvider>().clearChat();
             Navigator.of(context).pop();
           }
-        }, "Clear Chat?", context.l10n.clearChatConfirm);
+        }, context.l10n.clearChatQuestion, context.l10n.clearChatConfirm);
       },
     );
   }
@@ -796,7 +846,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
     await routeToPage(
       context,
       CapabilityAppsPage(
-        capability: AppCapability(id: 'chat', title: 'Chat Assistants'),
+        capability: AppCapability(id: 'chat', title: context.l10n.chatAssistantsTitle),
         apps: const [],
       ),
     );
@@ -927,10 +977,10 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                 width: double.infinity,
                 height: 32,
                 color: Colors.green,
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'Syncing messages with server...',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    context.l10n.syncingMessages,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ),
@@ -953,7 +1003,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
         Container(
           constraints: const BoxConstraints(maxWidth: 140),
           child: Text(
-            selectedApp != null ? selectedApp.getName() : "Omi",
+            selectedApp != null ? selectedApp.getName() : context.l10n.omiAppName,
             style: const TextStyle(color: Colors.white, fontSize: 16),
             overflow: TextOverflow.ellipsis,
           ),
@@ -987,9 +1037,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Chat Apps',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.chatAppsTitle,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
@@ -1012,9 +1062,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                     padding: EdgeInsets.only(left: 2, top: 1),
                     child: FaIcon(FontAwesomeIcons.solidTrashCan, color: Colors.redAccent, size: 20),
                   ),
-                  title: const Text(
-                    'Clear Chat',
-                    style: TextStyle(color: Colors.redAccent, fontSize: 16),
+                  title: Text(
+                    context.l10n.clearChat,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 16),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -1026,9 +1076,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                     padding: EdgeInsets.only(left: 2, top: 1),
                     child: FaIcon(FontAwesomeIcons.circlePlus, color: Colors.white, size: 20),
                   ),
-                  title: const Text(
-                    'Enable Apps',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  title: Text(
+                    context.l10n.enableApps,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                   trailing: const Padding(
                     padding: EdgeInsets.only(left: 2, top: 1),
@@ -1040,11 +1090,11 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                   },
                 ),
                 const Divider(color: Colors.white12, height: 1),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 20, 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 20, 8),
                   child: Text(
-                    'Select App',
-                    style: TextStyle(
+                    context.l10n.selectApp,
+                    style: const TextStyle(
                       color: Colors.white60,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -1059,7 +1109,7 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                       // Omi option
                       _buildDrawerAppItem(
                         avatar: _getOmiAvatar(),
-                        name: 'Omi',
+                        name: context.l10n.omiAppName,
                         isSelected: isOmiSelected,
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1081,11 +1131,11 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                                 : null,
                           )),
                       if (chatApps.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(20),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
                           child: Text(
-                            'No chat apps enabled.\nTap "Enable Apps" to add some.',
-                            style: TextStyle(color: Colors.white38, fontSize: 14),
+                            context.l10n.noChatAppsEnabled,
+                            style: const TextStyle(color: Colors.white38, fontSize: 14),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -1140,9 +1190,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(
+                child: Text(
+                  context.l10n.cancel,
+                  style: const TextStyle(
                     color: Colors.black,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -1165,9 +1215,9 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                   color: Colors.redAccent,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Disable',
-                  style: TextStyle(
+                child: Text(
+                  context.l10n.disable,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -1283,38 +1333,38 @@ class ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin {
                 child: Column(
                   children: [
                     _buildIOSActionItem(
-                      title: "Take Photo",
+                      title: context.l10n.takePhoto,
                       icon: Icons.camera_alt,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         Navigator.pop(context);
                         if (mounted) {
-                          context.read<MessageProvider>().captureImage();
+                          this.context.read<MessageProvider>().captureImage();
                         }
                       },
                       isFirst: true,
                     ),
                     _buildDivider(),
                     _buildIOSActionItem(
-                      title: "Photo Library",
+                      title: context.l10n.photoLibrary,
                       icon: Icons.photo_library,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         Navigator.pop(context);
                         if (mounted) {
-                          context.read<MessageProvider>().selectImage();
+                          this.context.read<MessageProvider>().selectImage();
                         }
                       },
                     ),
                     _buildDivider(),
                     _buildIOSActionItem(
-                      title: "Choose File",
+                      title: context.l10n.chooseFile,
                       icon: Icons.folder,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         Navigator.pop(context);
                         if (mounted) {
-                          context.read<MessageProvider>().selectFile();
+                          this.context.read<MessageProvider>().selectFile();
                         }
                       },
                       isLast: true,

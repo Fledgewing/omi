@@ -10,6 +10,7 @@ import 'package:upgrader/upgrader.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:omi/backend/http/api/users.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/app.dart';
 import 'package:omi/desktop/pages/settings/desktop_settings_modal.dart';
@@ -30,13 +31,14 @@ import 'package:omi/services/notifications.dart';
 import 'package:omi/services/shortcut_service.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
 import 'package:omi/utils/audio/foreground.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/other/temp.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
 import 'package:omi/utils/platform/platform_service.dart';
 import 'package:omi/utils/responsive/responsive_helper.dart';
 import 'package:omi/widgets/upgrade_alert.dart';
-import '../../pages/conversations/sync_page.dart';
+import 'package:omi/pages/conversations/sync_page.dart';
 import 'actions/desktop_actions_page.dart';
 import 'apps/desktop_add_app_page.dart';
 import 'apps/desktop_apps_page.dart';
@@ -167,6 +169,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
   void initState() {
     super.initState();
     SharedPreferencesUtil().onboardingCompleted = true;
+    updateUserOnboardingState(completed: true);
     _showGetOmiWidget = SharedPreferencesUtil().showGetOmiCard;
 
     // Initialize shortcut service to listen for native navigation requests
@@ -477,39 +480,44 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           // Main navigation items
                           _buildNavItem(
                             icon: FontAwesomeIcons.house,
-                            label: 'Conversations',
+                            label: context.l10n.conversations,
                             index: 0,
                             isSelected: homeProvider.selectedIndex == 0,
                             onTap: () => _navigateToIndex(0, homeProvider),
                           ),
                           _buildNavItem(
                             icon: FontAwesomeIcons.solidComments,
-                            label: 'Chat',
+                            label: context.l10n.chat,
                             index: 1,
                             isSelected: homeProvider.selectedIndex == 1,
                             onTap: () => _navigateToIndex(1, homeProvider),
                           ),
                           _buildNavItem(
                             icon: FontAwesomeIcons.brain,
-                            label: 'Memories',
+                            label: context.l10n.memories,
                             index: 2,
                             isSelected: homeProvider.selectedIndex == 2,
                             onTap: () => _navigateToIndex(2, homeProvider),
                           ),
                           _buildNavItem(
                             icon: FontAwesomeIcons.squareCheck,
-                            label: 'Tasks',
+                            label: context.l10n.tasks,
                             index: 3,
                             isSelected: homeProvider.selectedIndex == 3,
                             onTap: () => _navigateToIndex(3, homeProvider),
                           ),
                           _buildNavItem(
                             icon: FontAwesomeIcons.gripVertical,
-                            label: 'Apps',
+                            label: context.l10n.apps,
                             index: 4,
                             isSelected: homeProvider.selectedIndex == 4,
                             onTap: () => _navigateToIndex(4, homeProvider),
                           ),
+
+                          const SizedBox(height: 16),
+
+                          // Rewind - launches bundled Swift app
+                          _buildRewindItem(),
 
                           const Spacer(),
 
@@ -530,7 +538,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                                 margin: const EdgeInsets.only(top: 12),
                                 child: _buildSecondaryNavItem(
                                   icon: Icons.download_rounded,
-                                  label: 'Sync Available',
+                                  label: context.l10n.syncAvailable,
                                   onTap: () => routeToPage(context, const SyncPage()),
                                   showAccent: true,
                                 ),
@@ -552,7 +560,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           // Secondary navigation items (same style as main nav)
                           _buildBottomNavItem(
                             icon: FontAwesomeIcons.gear,
-                            label: 'Settings',
+                            label: context.l10n.settings,
                             onTap: () {
                               MixpanelManager().pageOpened('Settings');
                               DesktopSettingsModal.show(context);
@@ -560,7 +568,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           ),
                           _buildBottomNavItem(
                             icon: FontAwesomeIcons.gift,
-                            label: 'Refer a Friend',
+                            label: context.l10n.referAFriend,
                             onTap: () {
                               MixpanelManager().pageOpened('Refer a Friend');
                               launchUrl(Uri.parse('https://affiliate.omi.me'));
@@ -568,7 +576,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           ),
                           _buildBottomNavItem(
                             icon: FontAwesomeIcons.circleQuestion,
-                            label: 'Help',
+                            label: context.l10n.help,
                             onTap: () {
                               if (PlatformService.isIntercomSupported) {
                                 Intercom.instance.displayHelpCenter();
@@ -666,9 +674,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                         width: 1,
                       ),
                     ),
-                    child: const Text(
-                      'Pro',
-                      style: TextStyle(
+                    child: Text(
+                      context.l10n.pro,
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: ResponsiveHelper.purplePrimary,
@@ -790,8 +798,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            MixpanelManager()
-                .bottomNavigationTabClicked(['Conversations', 'Chat', 'Memories', 'Tasks', 'Apps'][index]);
+            MixpanelManager().bottomNavigationTabClicked(['Conversations', 'Chat', 'Memories', 'Tasks', 'Apps'][index]);
             onTap();
           },
           borderRadius: BorderRadius.circular(10),
@@ -837,6 +844,94 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
+  }
+
+  /// Rewind button - launches the bundled Swift app in rewind mode
+  Widget _buildRewindItem() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _launchRewindApp,
+          borderRadius: BorderRadius.circular(10),
+          hoverColor: ResponsiveHelper.backgroundTertiary.withValues(alpha: 0.5),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: ResponsiveHelper.backgroundTertiary.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                // Rewind icon
+                const Icon(
+                  FontAwesomeIcons.clockRotateLeft,
+                  color: ResponsiveHelper.textTertiary,
+                  size: 15,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Rewind',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: ResponsiveHelper.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        'Search your screen history',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: ResponsiveHelper.textTertiary.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow indicator
+                const Icon(
+                  Icons.chevron_right,
+                  color: ResponsiveHelper.textTertiary,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Launch the bundled Omi Computer app in rewind mode
+  Future<void> _launchRewindApp() async {
+    MixpanelManager().track('Rewind Launched');
+
+    try {
+      // Get path to bundled app inside our own bundle
+      // The app is at: Omi.app/Contents/MacOS/Omi Computer.app
+      final executablePath = Platform.resolvedExecutable;
+      final macOSDir = File(executablePath).parent.path;
+      final bundledAppPath = '$macOSDir/Omi Computer.app';
+
+      Logger.debug('Launching Rewind app from: $bundledAppPath');
+
+      await Process.run('open', [bundledAppPath, '--args', '--mode=rewind']);
+    } catch (e) {
+      Logger.error('Failed to launch Rewind app: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open Rewind. Please try again.'),
+          ),
+        );
+      }
+    }
   }
 
   /// Navigate to create app page (index 5)
@@ -906,18 +1001,18 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                 ),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     FontAwesomeIcons.bolt,
                     color: Colors.white,
                     size: 13,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
-                    'Upgrade to Pro',
-                    style: TextStyle(
+                    context.l10n.upgradeToPro,
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -979,9 +1074,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Get Omi Device',
-                            style: TextStyle(
+                          Text(
+                            context.l10n.getOmiDevice,
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: ResponsiveHelper.textPrimary,
@@ -989,7 +1084,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> with WidgetsBindingOb
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Wearable AI companion',
+                            context.l10n.wearableAiCompanion,
                             style: TextStyle(
                               fontSize: 11,
                               color: ResponsiveHelper.textTertiary.withValues(alpha: 0.8),

@@ -6,11 +6,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:omi/backend/http/api/apps.dart' as apps_api;
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/env/env.dart';
+import 'package:omi/main.dart';
 import 'package:omi/providers/base_provider.dart';
 import 'package:omi/services/auth_service.dart';
 import 'package:omi/services/notifications.dart';
 import 'package:omi/utils/alerts/app_snackbar.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
 import 'package:omi/utils/platform/platform_service.dart';
@@ -29,18 +31,29 @@ class AuthenticationProvider extends BaseProvider {
   }
 
   void _initializeAuthListeners() {
+    // DEBUG: Log initial state
+    Logger.debug(
+        'DEBUG AuthProvider: Initial currentUser=${_auth.currentUser?.uid}, isAnonymous=${_auth.currentUser?.isAnonymous}');
+
     Future.microtask(() {
       _auth.authStateChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) {
+        Logger.debug(
+            'DEBUG AuthProvider: authStateChanges fired - user=${user?.uid}, isAnonymous=${user?.isAnonymous}');
         this.user = user;
-        SharedPreferencesUtil().uid = user?.uid ?? '';
-        SharedPreferencesUtil().email = user?.email ?? '';
-        SharedPreferencesUtil().givenName = user?.displayName?.split(' ')[0] ?? '';
+        // Only update SharedPreferences if Firebase has a user
+        // Don't clear cached credentials - allows fallback for dev builds
+        if (user != null) {
+          SharedPreferencesUtil().uid = user.uid;
+          SharedPreferencesUtil().email = user.email ?? '';
+          SharedPreferencesUtil().givenName = user.displayName?.split(' ')[0] ?? '';
+        }
       });
       _auth.idTokenChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) async {
         if (user == null) {
           Logger.debug('User is currently signed out or the token has been revoked! ${user == null}');
-          SharedPreferencesUtil().authToken = '';
-          authToken = null;
+          // Don't clear cached token - allows fallback for dev builds
+          // SharedPreferencesUtil().authToken = '';
+          // authToken = null;
         } else {
           Logger.debug('User is signed in at ${DateTime.now()} with user ${user.uid}');
           try {
@@ -58,7 +71,22 @@ class AuthenticationProvider extends BaseProvider {
     });
   }
 
-  bool isSignedIn() => _auth.currentUser != null && !_auth.currentUser!.isAnonymous;
+  bool isSignedIn() {
+    // Check Firebase SDK first
+    if (_auth.currentUser != null && !_auth.currentUser!.isAnonymous) {
+      return true;
+    }
+    // Fallback: check cached credentials (for dev builds where Keychain doesn't persist)
+    // This matches the Swift desktop app behavior
+    final cachedUid = SharedPreferencesUtil().uid;
+    final cachedToken = SharedPreferencesUtil().authToken;
+    print('DEBUG AuthProvider.isSignedIn: cachedUid="${cachedUid}", tokenLength=${cachedToken.length}');
+    if (cachedUid.isNotEmpty && cachedToken.isNotEmpty) {
+      print('DEBUG AuthProvider: Using cached credentials fallback - uid=$cachedUid');
+      return true;
+    }
+    return false;
+  }
 
   void setLoading(bool value) {
     _loading = value;
@@ -79,11 +107,13 @@ class AuthenticationProvider extends BaseProvider {
         if (credential != null && isSignedIn()) {
           _signIn(onSignIn);
         } else {
-          AppSnackbar.showSnackbarError('Failed to sign in with Google, please try again.');
+          AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToSignInWithGoogle ??
+              'Failed to sign in with Google, please try again.');
         }
       } catch (e) {
         Logger.debug('OAuth Google sign in error: $e');
-        AppSnackbar.showSnackbarError('Authentication failed. Please try again.');
+        AppSnackbar.showSnackbarError(
+            MyApp.navigatorKey.currentContext?.l10n.authenticationFailed ?? 'Authentication failed. Please try again.');
       }
       setLoadingState(false);
     }
@@ -103,11 +133,13 @@ class AuthenticationProvider extends BaseProvider {
         if (credential != null && isSignedIn()) {
           _signIn(onSignIn);
         } else {
-          AppSnackbar.showSnackbarError('Failed to sign in with Apple, please try again.');
+          AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToSignInWithApple ??
+              'Failed to sign in with Apple, please try again.');
         }
       } catch (e) {
         Logger.debug('OAuth Apple sign in error: $e');
-        AppSnackbar.showSnackbarError('Authentication failed. Please try again.');
+        AppSnackbar.showSnackbarError(
+            MyApp.navigatorKey.currentContext?.l10n.authenticationFailed ?? 'Authentication failed. Please try again.');
       }
       setLoadingState(false);
     }
@@ -121,7 +153,8 @@ class AuthenticationProvider extends BaseProvider {
       Logger.debug('Token: $token');
       return token;
     } catch (e, stackTrace) {
-      AppSnackbar.showSnackbarError('Failed to retrieve firebase token, please try again.');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToRetrieveToken ??
+          'Failed to retrieve firebase token, please try again.');
       PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
 
       return null;
@@ -136,7 +169,8 @@ class AuthenticationProvider extends BaseProvider {
       try {
         user = FirebaseAuth.instance.currentUser!;
       } catch (e, stackTrace) {
-        AppSnackbar.showSnackbarError('Unexpected error signing in, Firebase error, please try again.');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authUnexpectedErrorFirebase ??
+            'Unexpected error signing in, Firebase error, please try again.');
 
         PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
         return;
@@ -146,7 +180,8 @@ class AuthenticationProvider extends BaseProvider {
       MixpanelManager().identify();
       onSignIn();
     } else {
-      AppSnackbar.showSnackbarError('Unexpected error signing in, please try again');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authUnexpectedError ??
+          'Unexpected error signing in, please try again');
     }
   }
 
@@ -190,7 +225,8 @@ class AuthenticationProvider extends BaseProvider {
         }
         return;
       }
-      AppSnackbar.showSnackbarError('Failed to link with Google, please try again.');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToLinkGoogle ??
+          'Failed to link with Google, please try again.');
       rethrow;
     } finally {
       setLoading(false);
@@ -226,12 +262,14 @@ class AuthenticationProvider extends BaseProvider {
           }
           return;
         }
-        AppSnackbar.showSnackbarError('Failed to link with Apple, please try again.');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToLinkApple ??
+            'Failed to link with Apple, please try again.');
         rethrow;
       }
     } catch (e) {
       print('Error linking with Apple: $e');
-      AppSnackbar.showSnackbarError('Failed to link with Apple, please try again.');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext?.l10n.authFailedToLinkApple ??
+          'Failed to link with Apple, please try again.');
       rethrow;
     } finally {
       setLoading(false);

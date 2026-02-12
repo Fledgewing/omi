@@ -6,6 +6,7 @@ import 'package:omi/backend/preferences.dart';
 import 'package:omi/providers/conversation_provider.dart';
 import 'package:omi/services/notifications/daily_reflection_notification.dart';
 import 'package:omi/utils/analytics/mixpanel.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:provider/provider.dart';
 
 class NotificationsSettingsPage extends StatefulWidget {
@@ -17,14 +18,14 @@ class NotificationsSettingsPage extends StatefulWidget {
 
 class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
   bool _isLoading = true;
-  
-  // Notification frequency (0-5)
-  int _notificationFrequency = 3;
-  
+
+  // Notification frequency (0-5), default 0 (disabled)
+  int _notificationFrequency = 0;
+
   // Daily Summary settings
   bool _dailySummaryEnabled = true;
   int _dailySummaryHour = 22; // Default to 10 PM
-  
+
   // Daily Reflection settings
   bool _dailyReflectionEnabled = true;
 
@@ -38,64 +39,74 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
   Future<void> _loadSettings() async {
     // Load Daily Summary settings from API
     final settings = await getDailySummarySettings();
-    
+
+    // Load Mentor Notification settings from API
+    final mentorSettings = await getMentorNotificationSettings();
+
     // Load settings from local prefs
     final reflectionEnabled = SharedPreferencesUtil().dailyReflectionEnabled;
-    final frequency = SharedPreferencesUtil().notificationFrequency;
-    
+    final localFrequency = SharedPreferencesUtil().notificationFrequency;
+
     if (mounted) {
       setState(() {
         if (settings != null) {
           _dailySummaryEnabled = settings.enabled;
           _dailySummaryHour = settings.hour;
         }
+        // Use backend value if available, otherwise use local
+        _notificationFrequency = mentorSettings?.frequency ?? localFrequency;
+        // Sync local with backend
+        if (mentorSettings != null) {
+          SharedPreferencesUtil().notificationFrequency = mentorSettings.frequency;
+        }
         _dailyReflectionEnabled = reflectionEnabled;
-        _notificationFrequency = frequency;
         _isLoading = false;
       });
     }
   }
 
-  void _updateNotificationFrequency(int value) {
+  Future<void> _updateNotificationFrequency(int value) async {
+    MixpanelManager().notificationFrequencyChanged(oldFrequency: _notificationFrequency, newFrequency: value);
     setState(() => _notificationFrequency = value);
     SharedPreferencesUtil().notificationFrequency = value;
+    await setMentorNotificationSettings(value);
   }
 
-  String _getFrequencyLabel(int value) {
+  String _getFrequencyLabel(BuildContext context, int value) {
     switch (value) {
       case 0:
-        return 'Off';
+        return context.l10n.frequencyOff;
       case 1:
-        return 'Minimal';
+        return context.l10n.frequencyMinimal;
       case 2:
-        return 'Low';
+        return context.l10n.frequencyLow;
       case 3:
-        return 'Balanced';
+        return context.l10n.frequencyBalanced;
       case 4:
-        return 'High';
+        return context.l10n.frequencyHigh;
       case 5:
-        return 'Maximum';
+        return context.l10n.frequencyMaximum;
       default:
-        return 'Balanced';
+        return context.l10n.frequencyBalanced;
     }
   }
 
-  String _getFrequencyDescription(int value) {
+  String _getFrequencyDescription(BuildContext context, int value) {
     switch (value) {
       case 0:
-        return 'No proactive notifications';
+        return context.l10n.frequencyDescOff;
       case 1:
-        return 'Only critical reminders';
+        return context.l10n.frequencyDescMinimal;
       case 2:
-        return 'Important updates only';
+        return context.l10n.frequencyDescLow;
       case 3:
-        return 'Regular helpful nudges';
+        return context.l10n.frequencyDescBalanced;
       case 4:
-        return 'Frequent check-ins';
+        return context.l10n.frequencyDescHigh;
       case 5:
-        return 'Stay constantly engaged';
+        return context.l10n.frequencyDescMaximum;
       default:
-        return 'Regular helpful nudges';
+        return context.l10n.frequencyDescBalanced;
     }
   }
 
@@ -118,9 +129,10 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
   }
 
   void _updateDailyReflectionEnabled(bool value) {
+    MixpanelManager().dailyReflectionToggled(enabled: value);
     setState(() => _dailyReflectionEnabled = value);
     SharedPreferencesUtil().dailyReflectionEnabled = value;
-    
+
     // Schedule or cancel the notification based on the setting
     if (value) {
       DailyReflectionNotification.scheduleDailyNotification(channelKey: 'channel');
@@ -153,13 +165,13 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: Text(
-                          'Cancel',
+                          context.l10n.cancel,
                           style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
                         ),
                       ),
-                      const Text(
-                        'Select Time',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.selectTime,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
@@ -170,9 +182,9 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                           _updateDailySummaryHour(tempHour);
                           Navigator.pop(context);
                         },
-                        child: const Text(
-                          'Done',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        child: Text(
+                          context.l10n.done,
+                          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -263,7 +275,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Summary generated for ${picked.month}/${picked.day}/${picked.year}'),
+            content: Text(context.l10n.summaryGeneratedFor('${picked.month}/${picked.day}/${picked.year}')),
             backgroundColor: Colors.green.shade700,
           ),
         );
@@ -272,7 +284,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to generate summary. Make sure you have conversations for that day.'),
+            content: Text(context.l10n.failedToGenerateSummary),
             backgroundColor: Colors.red.shade700,
           ),
         );
@@ -285,7 +297,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.primary,
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(context.l10n.notifications),
         backgroundColor: Theme.of(context).colorScheme.primary,
         elevation: 0,
         actions: [
@@ -298,13 +310,13 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'generate',
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                    SizedBox(width: 12),
-                    Text('Generate Summary', style: TextStyle(color: Colors.white)),
+                    const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Text(context.l10n.generateSummary, style: const TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
@@ -320,12 +332,12 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Notification Frequency Section
-                  _buildSectionHeader('Notification Frequency'),
+                  _buildSectionHeader(context.l10n.notificationFrequency),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'Control how often Omi sends you proactive notifications and reminders.',
+                      context.l10n.notificationFrequencyDescription,
                       style: TextStyle(
                         color: Colors.grey.shade400,
                         fontSize: 14,
@@ -334,16 +346,16 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                     ),
                   ),
                   _buildFrequencyCard(),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Daily Summary Section
-                  _buildSectionHeader('Daily Summary'),
+                  _buildSectionHeader(context.l10n.dailySummary),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'Get a personalized summary of your day\'s conversations delivered as a notification.',
+                      context.l10n.dailySummaryDescription,
                       style: TextStyle(
                         color: Colors.grey.shade400,
                         fontSize: 14,
@@ -352,16 +364,16 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                     ),
                   ),
                   _buildDailySummaryCard(),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Daily Reflection Section
-                  _buildSectionHeader('Daily Reflection'),
+                  _buildSectionHeader(context.l10n.dailyReflection),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'Get a reminder at 9 PM to reflect on your day and capture your thoughts.',
+                      context.l10n.dailyReflectionDescription,
                       style: TextStyle(
                         color: Colors.grey.shade400,
                         fontSize: 14,
@@ -404,7 +416,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _getFrequencyLabel(_notificationFrequency),
+                    _getFrequencyLabel(context, _notificationFrequency),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -413,7 +425,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _getFrequencyDescription(_notificationFrequency),
+                    _getFrequencyDescription(context, _notificationFrequency),
                     style: TextStyle(
                       color: Colors.grey.shade400,
                       fontSize: 14,
@@ -425,18 +437,14 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _notificationFrequency == 0 
-                      ? Colors.grey.shade800 
-                      : const Color(0xFF6366F1).withOpacity(0.2),
+                  color: _notificationFrequency == 0 ? Colors.grey.shade800 : const Color(0xFF6366F1).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
                   child: Text(
                     '$_notificationFrequency',
                     style: TextStyle(
-                      color: _notificationFrequency == 0 
-                          ? Colors.grey.shade500 
-                          : const Color(0xFF6366F1),
+                      color: _notificationFrequency == 0 ? Colors.grey.shade500 : const Color(0xFF6366F1),
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -445,9 +453,9 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Slider
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -466,7 +474,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
               onChanged: (value) => _updateNotificationFrequency(value.round()),
             ),
           ),
-          
+
           // Labels
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -474,14 +482,14 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Off',
+                  context.l10n.sliderOff,
                   style: TextStyle(
                     color: Colors.grey.shade500,
                     fontSize: 12,
                   ),
                 ),
                 Text(
-                  'Max',
+                  context.l10n.sliderMax,
                   style: TextStyle(
                     color: Colors.grey.shade500,
                     fontSize: 12,
@@ -507,7 +515,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
           // Enable toggle row
           _buildSettingRow(
             icon: FontAwesomeIcons.bell,
-            title: 'Enable',
+            title: context.l10n.enable,
             trailing: Switch(
               value: _dailySummaryEnabled,
               onChanged: _updateDailySummaryEnabled,
@@ -529,7 +537,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
               behavior: HitTestBehavior.opaque,
               child: _buildSettingRow(
                 icon: FontAwesomeIcons.clock,
-                title: 'Delivery Time',
+                title: context.l10n.deliveryTime,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -565,7 +573,7 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
       ),
       child: _buildSettingRow(
         icon: FontAwesomeIcons.moon,
-        title: 'Enable',
+        title: context.l10n.enable,
         trailing: Switch(
           value: _dailyReflectionEnabled,
           onChanged: _updateDailyReflectionEnabled,

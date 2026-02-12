@@ -15,9 +15,12 @@ import 'package:omi/services/devices/friend_pendant_connection.dart';
 import 'package:omi/services/devices/limitless_connection.dart';
 import 'package:omi/services/devices/models.dart';
 import 'package:omi/services/devices/omi_connection.dart';
+import 'package:omi/services/devices/omiglass_connection.dart';
 import 'package:omi/services/devices/plaud_connection.dart';
 import 'package:omi/services/devices/wifi_sync_error.dart';
+import 'package:omi/main.dart';
 import 'package:omi/services/notifications.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/services/devices/transports/device_transport.dart';
 import 'package:omi/services/devices/transports/ble_transport.dart';
 import 'package:omi/services/devices/transports/frame_transport.dart';
@@ -49,10 +52,23 @@ class DeviceConnectionFactory {
     }
 
     // Create device connection with transport
+    // Use name-based detection as fallback for OmiGlass devices
+    final deviceName = device.name.toLowerCase();
+    final isOmiGlass = device.type == DeviceType.openglass ||
+        deviceName.contains('openglass') ||
+        deviceName.contains('omiglass') ||
+        deviceName.contains('glass');
+
     switch (device.type) {
       case DeviceType.omi:
-      case DeviceType.openglass:
+        // Check if this is actually an OmiGlass device by name
+        if (isOmiGlass) {
+          Logger.debug('DeviceConnectionFactory: Device name suggests OmiGlass, creating OmiGlassConnection');
+          return OmiGlassConnection(device, transport);
+        }
         return OmiDeviceConnection(device, transport);
+      case DeviceType.openglass:
+        return OmiGlassConnection(device, transport);
       case DeviceType.bee:
         return BeeDeviceConnection(device, transport);
       case DeviceType.plaud:
@@ -531,9 +547,11 @@ abstract class DeviceConnection {
   }
 
   void _showDeviceDisconnectedNotification() {
+    final ctx = MyApp.navigatorKey.currentContext;
+    final deviceName = device.name;
     NotificationService.instance.createNotification(
-      title: '${device.name} Disconnected',
-      body: 'Please reconnect to continue using your ${device.name}.',
+      title: ctx?.l10n.deviceDisconnectedTitle(deviceName) ?? '$deviceName Disconnected',
+      body: ctx?.l10n.deviceDisconnectedBody(deviceName) ?? 'Please reconnect to continue using your $deviceName.',
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:omi/backend/schema/schema.dart';
 import 'package:omi/providers/action_items_provider.dart';
 import 'package:omi/providers/home_provider.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 
 /// Widget showing top 3 today's tasks with "Show all ->" button
 class TodayTasksWidget extends StatelessWidget {
@@ -34,35 +35,28 @@ class TodayTasksWidget extends StatelessWidget {
         // Take top 3
         final displayTasks = todayTasks.take(3).toList();
 
-        if (displayTasks.isEmpty && provider.actionItems.isEmpty) {
+        // Hide if no today tasks
+        if (displayTasks.isEmpty) {
           return const SizedBox.shrink();
         }
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.white.withOpacity(0.08),
-                width: 1,
-              ),
-            ),
-          ),
+          margin: const EdgeInsets.only(left: 24, right: 8),
+          padding: const EdgeInsets.only(bottom: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with "Today" and "Show all ->"
+              // Header with "Today" and "Show All" button
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.only(top: 8, bottom: 8, right: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Today',
-                      style: TextStyle(
+                    Text(
+                      context.l10n.today,
+                      style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -72,12 +66,19 @@ class TodayTasksWidget extends StatelessWidget {
                         // Navigate to tasks tab
                         context.read<HomeProvider>().setIndex(1);
                       },
-                      child: Text(
-                        'Show all →',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          context.l10n.viewAll,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
@@ -89,7 +90,7 @@ class TodayTasksWidget extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'No tasks for today. Ask Omi for more tasks or create manually.',
+                    context.l10n.noTasksForToday,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.4),
                       fontSize: 14,
@@ -97,8 +98,22 @@ class TodayTasksWidget extends StatelessWidget {
                   ),
                 )
               else
-                ...displayTasks.map(
-                  (task) => _TaskItem(task: task, provider: provider),
+                Transform.translate(
+                  offset: const Offset(-8, 0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F1F25),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                      children: displayTasks
+                          .map(
+                            (task) => _TaskItem(task: task, provider: provider),
+                          )
+                          .toList(),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -117,47 +132,46 @@ class _TaskItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Checkbox
-          GestureDetector(
-            onTap: () async {
-              HapticFeedback.lightImpact();
-              await provider.updateActionItemState(task, !task.completed);
-            },
-            child: Container(
-              width: 22,
-              height: 22,
-              margin: const EdgeInsets.only(top: 2, right: 12),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: task.completed ? Colors.amber : Colors.grey.shade600,
-                  width: 2,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Checkbox
+            GestureDetector(
+              onTap: () async {
+                HapticFeedback.lightImpact();
+                await provider.updateActionItemState(task, !task.completed);
+              },
+              child: Container(
+                width: 22,
+                height: 22,
+                margin: const EdgeInsets.only(top: 2, right: 12),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: task.completed ? Colors.amber : Colors.grey.shade600,
+                    width: 2,
+                  ),
+                  color: task.completed ? Colors.amber : Colors.transparent,
                 ),
-                color: task.completed ? Colors.amber : Colors.transparent,
+                child: task.completed ? const Icon(Icons.check, size: 14, color: Colors.black) : null,
               ),
-              child: task.completed ? const Icon(Icons.check, size: 14, color: Colors.black) : null,
             ),
-          ),
-          // Task text
-          Expanded(
-            child: Text(
-              task.description,
-              style: TextStyle(
-                color: task.completed ? Colors.grey.shade600 : Colors.white,
-                fontSize: 15,
-                decoration: task.completed ? TextDecoration.lineThrough : null,
-                height: 1.4,
+            // Task text
+            Expanded(
+              child: Text(
+                task.description,
+                style: TextStyle(
+                  color: task.completed ? Colors.grey.shade600 : Colors.white,
+                  fontSize: 15,
+                  decoration: task.completed ? TextDecoration.lineThrough : null,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 }

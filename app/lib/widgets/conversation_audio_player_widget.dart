@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import 'package:omi/backend/http/api/audio.dart';
 import 'package:omi/backend/schema/conversation.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/logger.dart';
 
 class ConversationAudioPlayerWidget extends StatefulWidget {
@@ -266,7 +267,7 @@ class _ConversationAudioPlayerWidgetState extends State<ConversationAudioPlayerW
             TextButton.icon(
               onPressed: _retryLoad,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
+              label: Text(context.l10n.retry),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.deepPurpleAccent,
               ),
@@ -374,10 +375,11 @@ class _ConversationAudioPlayerWidgetState extends State<ConversationAudioPlayerW
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.grey),
-                onPressed: widget.onCollapse,
-              ),
+              if (widget.onCollapse != null)
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: widget.onCollapse,
+                ),
             ],
           ),
           const SizedBox(height: 8),

@@ -15,7 +15,9 @@ import 'package:omi/backend/http/api/apps.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/app.dart';
 import 'package:omi/providers/app_provider.dart';
+import 'package:omi/main.dart';
 import 'package:omi/utils/alerts/app_snackbar.dart';
+import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/widgets/extensions/string.dart';
 
@@ -44,6 +46,7 @@ class AddAppProvider extends ChangeNotifier {
   TextEditingController authUrlController = TextEditingController();
   TextEditingController appHomeUrlController = TextEditingController();
   TextEditingController chatToolsManifestUrlController = TextEditingController();
+  TextEditingController sourceCodeUrlController = TextEditingController();
 
   // Pricing
   TextEditingController priceController = TextEditingController();
@@ -198,6 +201,9 @@ class AddAppProvider extends ChangeNotifier {
         }
       }
     }
+    if (app.sourceCodeUrl != null) {
+      sourceCodeUrlController.text = app.sourceCodeUrl!;
+    }
     if (app.chatPrompt != null) {
       chatPromptController.text = app.chatPrompt!.decodeString;
     }
@@ -232,6 +238,7 @@ class AddAppProvider extends ChangeNotifier {
     authUrlController.clear();
     appHomeUrlController.clear();
     chatToolsManifestUrlController.clear();
+    sourceCodeUrlController.clear();
     priceController.clear();
     selectePaymentPlan = null;
     termsAgreed = false;
@@ -448,54 +455,62 @@ class AddAppProvider extends ChangeNotifier {
       }
       if (selectedCapabilities.length == 1 && selectedCapabilities.first.id == 'proactive_notification') {
         if (selectedScopes.isEmpty) {
-          AppSnackbar.showSnackbarError('Please select one more core capability for your app to proceed');
+          AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectCoreCapability);
           return false;
         }
       }
       if (isPaid && (priceController.text.isEmpty || selectePaymentPlan == null)) {
-        AppSnackbar.showSnackbarError('Please select a payment plan and enter a price for your app');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectPaymentPlan);
         return false;
       }
       if (!capabilitySelected()) {
-        AppSnackbar.showSnackbarError('Please select at least one capability for your app');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectCapability);
         return false;
       }
       if (imageFile == null && imageUrl == null) {
-        AppSnackbar.showSnackbarError('Please select a logo for your app');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectLogo);
         return false;
       }
       for (var capability in selectedCapabilities) {
         if (capability.title == 'chat') {
           if (chatPromptController.text.isEmpty) {
-            AppSnackbar.showSnackbarError('Please enter a chat prompt for your app');
+            AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppEnterChatPrompt);
             return false;
           }
         }
         if (capability.title == 'memories') {
           if (conversationPromptController.text.isEmpty) {
-            AppSnackbar.showSnackbarError('Please enter a conversation prompt for your app');
+            AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppEnterConversationPrompt);
             return false;
           }
         }
         if (capability.title == 'external_integration') {
           if (triggerEvent == null) {
-            AppSnackbar.showSnackbarError('Please select a trigger event for your app');
+            AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectTriggerEvent);
             return false;
           }
           if (webhookUrlController.text.isEmpty) {
-            AppSnackbar.showSnackbarError('Please enter a webhook URL for your app');
+            AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppEnterWebhookUrl);
             return false;
           }
           // Setup completed URL is optional, so we don't validate it here
         }
       }
       if (appCategory == null) {
-        AppSnackbar.showSnackbarError('Please select a category for your app');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppSelectCategory);
+        return false;
+      }
+      // Require source code URL for external integration or proactive notification apps
+      bool needsSourceCode = selectedCapabilities.any(
+        (cap) => cap.id == 'external_integration' || cap.id == 'proactive_notification',
+      );
+      if (needsSourceCode && sourceCodeUrlController.text.trim().isEmpty) {
+        AppSnackbar.showSnackbarError('GitHub repository URL is required for this app type');
         return false;
       }
       return true;
     } else {
-      AppSnackbar.showSnackbarError('Please fill in all the required fields correctly');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppFillRequiredFields);
       return false;
     }
   }
@@ -516,6 +531,7 @@ class AddAppProvider extends ChangeNotifier {
       'price': priceController.text.isNotEmpty ? double.parse(priceController.text) : 0.0,
       'payment_plan': selectePaymentPlan,
       'thumbnails': thumbnailIds,
+      'source_code_url': sourceCodeUrlController.text.trim().isNotEmpty ? sourceCodeUrlController.text.trim() : null,
     };
 
     for (var capability in selectedCapabilities) {
@@ -561,11 +577,11 @@ class AddAppProvider extends ChangeNotifier {
       await appProvider!.getApps();
       var app = await getAppDetailsServer(updateAppId!);
       appProvider!.updateLocalApp(App.fromJson(app!));
-      AppSnackbar.showSnackbarSuccess('App updated successfully 🚀');
+      AppSnackbar.showSnackbarSuccess(MyApp.navigatorKey.currentContext!.l10n.addAppUpdatedSuccess);
       clear();
       success = true;
     } else {
-      AppSnackbar.showSnackbarError('Failed to update app. Please try again later');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppUpdateFailed);
       success = false;
     }
     checkValidity();
@@ -588,6 +604,7 @@ class AddAppProvider extends ChangeNotifier {
       'price': priceController.text.isNotEmpty ? double.parse(priceController.text) : 0.0,
       'payment_plan': selectePaymentPlan,
       'thumbnails': thumbnailIds,
+      'source_code_url': sourceCodeUrlController.text.trim().isNotEmpty ? sourceCodeUrlController.text.trim() : null,
     };
 
     for (var capability in selectedCapabilities) {
@@ -630,7 +647,7 @@ class AddAppProvider extends ChangeNotifier {
     String? appId;
     var res = await submitAppServer(imageFile!, data);
     if (res.$1) {
-      AppSnackbar.showSnackbarSuccess('App submitted successfully 🚀');
+      AppSnackbar.showSnackbarSuccess(MyApp.navigatorKey.currentContext!.l10n.addAppSubmittedSuccess);
       await appProvider!.getApps();
       clear();
       appId = res.$3;
@@ -668,10 +685,12 @@ class AddAppProvider extends ChangeNotifier {
           }
         } on PlatformException catch (e) {
           Logger.debug('🖼️ FilePicker PlatformException: ${e.code} - ${e.message}');
-          AppSnackbar.showSnackbarError('Error opening file picker: ${e.message}');
+          AppSnackbar.showSnackbarError(
+              MyApp.navigatorKey.currentContext!.l10n.addAppErrorOpeningFilePicker(e.message ?? e.code));
         } catch (e) {
           Logger.debug('🖼️ FilePicker general error: $e');
-          AppSnackbar.showSnackbarError('Error selecting image: $e');
+          AppSnackbar.showSnackbarError(
+              MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingImage(e.toString()));
         }
       } else {
         Logger.debug('🖼️ Using image_picker for mobile platform');
@@ -690,13 +709,14 @@ class AddAppProvider extends ChangeNotifier {
     } on PlatformException catch (e) {
       Logger.debug('🖼️ PlatformException during image picking: ${e.code} - ${e.message}');
       if (e.code == 'photo_access_denied') {
-        AppSnackbar.showSnackbarError('Photos permission denied. Please allow access to photos to select an image');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppPhotosPermissionDenied);
       } else {
-        AppSnackbar.showSnackbarError('Error selecting image: ${e.message ?? e.code}');
+        AppSnackbar.showSnackbarError(
+            MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingImage(e.message ?? e.code));
       }
     } catch (e) {
       Logger.debug('🖼️ General exception during image picking: $e');
-      AppSnackbar.showSnackbarError('Error selecting image. Please try again.');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingImageRetry);
     }
     checkValidity();
     notifyListeners();
@@ -730,11 +750,13 @@ class AddAppProvider extends ChangeNotifier {
           }
         } on PlatformException catch (e) {
           Logger.debug('🖼️ FilePicker PlatformException (thumbnail): ${e.code} - ${e.message}');
-          AppSnackbar.showSnackbarError('Error opening file picker: ${e.message}');
+          AppSnackbar.showSnackbarError(
+              MyApp.navigatorKey.currentContext!.l10n.addAppErrorOpeningFilePicker(e.message ?? e.code));
           return;
         } catch (e) {
           Logger.debug('🖼️ FilePicker general error (thumbnail): $e');
-          AppSnackbar.showSnackbarError('Error selecting thumbnail: $e');
+          AppSnackbar.showSnackbarError(
+              MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingThumbnail(e.toString()));
           return;
         }
       } else {
@@ -769,14 +791,15 @@ class AddAppProvider extends ChangeNotifier {
     } on PlatformException catch (e) {
       Logger.debug('🖼️ PlatformException during thumbnail picking: ${e.code} - ${e.message}');
       if (e.code == 'photo_access_denied') {
-        AppSnackbar.showSnackbarError('Photos permission denied. Please allow access to photos to select an image');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppPhotosPermissionDenied);
       } else {
-        AppSnackbar.showSnackbarError('Error selecting thumbnail: ${e.message ?? e.code}');
+        AppSnackbar.showSnackbarError(
+            MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingThumbnail(e.message ?? e.code));
       }
       setIsUploadingThumbnail(false);
     } catch (e) {
       Logger.debug('🖼️ General exception during thumbnail picking: $e');
-      AppSnackbar.showSnackbarError('Error selecting thumbnail. Please try again.');
+      AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppErrorSelectingThumbnailRetry);
       setIsUploadingThumbnail(false);
     }
     checkValidity();
@@ -830,7 +853,7 @@ class AddAppProvider extends ChangeNotifier {
       notifyListeners();
     } on PlatformException catch (e) {
       if (e.code == 'photo_access_denied') {
-        AppSnackbar.showSnackbarError('Photos permission denied. Please allow access to photos to select an image');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppPhotosPermissionDenied);
       }
     }
     checkValidity();
@@ -842,9 +865,9 @@ class AddAppProvider extends ChangeNotifier {
       selectedCapabilities.remove(capability);
     } else {
       if (selectedCapabilities.length == 1 && selectedCapabilities.first.id == 'persona') {
-        AppSnackbar.showSnackbarError('Other capabilities cannot be selected with Persona');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppCapabilityConflictWithPersona);
       } else if (selectedCapabilities.isNotEmpty && capability.id == 'persona') {
-        AppSnackbar.showSnackbarError('Persona cannot be selected with other capabilities');
+        AppSnackbar.showSnackbarError(MyApp.navigatorKey.currentContext!.l10n.addAppPersonaConflictWithCapabilities);
       } else {
         selectedCapabilities.add(capability);
       }

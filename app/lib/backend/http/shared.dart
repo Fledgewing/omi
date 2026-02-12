@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
-
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart';
 
@@ -11,7 +9,6 @@ import 'package:omi/backend/http/http_pool_manager.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/env/env.dart';
 import 'package:omi/services/auth_service.dart';
-import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
 
@@ -264,6 +261,7 @@ Stream<String> makeMultipartStreamingApiCall({
   required String url,
   required List<File> files,
   Map<String, String> headers = const {},
+  Map<String, String> fields = const {},
   String fileFieldName = 'files',
 }) async* {
   try {
@@ -274,6 +272,7 @@ Stream<String> makeMultipartStreamingApiCall({
 
     var request = http.MultipartRequest('POST', Uri.parse(url));
     request.headers.addAll(builtHeaders);
+    request.fields.addAll(fields);
 
     for (var file in files) {
       request.files.add(await http.MultipartFile.fromPath(fileFieldName, file.path, filename: basename(file.path)));
